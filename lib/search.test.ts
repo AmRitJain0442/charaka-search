@@ -23,9 +23,14 @@ describe("Charaka retrieval", () => {
     const plan = localQueryPlan("sweat");
     const results = searchCorpus(plan);
 
-    expect(plan.terms).toEqual(expect.arrayContaining(["sveda", "svedana"]));
+    expect(plan.terms).toEqual(["sveda"]);
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]?.devanagari).toContain("स्वेद");
+  });
+
+  it("tolerates a minor Romanized Sanskrit misspelling", () => {
+    const results = searchCorpus(localQueryPlan("arogyaa mulam"));
+    expect(results[0]?.id).toBe("Ca.1.1.15");
   });
 
   it("resolves an exact canonical citation", () => {

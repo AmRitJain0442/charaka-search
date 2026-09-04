@@ -14,8 +14,9 @@ interpretation, while every displayed character comes from the indexed source ed
 3. Lossless IAST is normalized for matching and transliterated into Devanāgarī for display.
 4. Everyday queries are expanded into likely Sanskrit lexical anchors. A curated bilingual
    concept map is always available; Vercel AI Gateway improves long-tail query interpretation.
-5. Exact, compound-substring, citation, term-coverage, and fuzzy signals are fused to rank
-   canonical passages. Search results are restricted to ślokas in the current product UI.
+5. A lightweight in-memory index applies BM25 relevance ranking, with additional exact,
+   Sanskrit-compound, phrase, citation, coverage, and fuzzy signals. It provides an
+   Elasticsearch-style hybrid search without an external service or network hop.
 
 The generated corpus contains 9,324 addressable passages: 7,770 verse groups and 1,554
 numbered prose passages.

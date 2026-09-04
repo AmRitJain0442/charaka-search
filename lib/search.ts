@@ -12,17 +12,21 @@ export interface QueryPlan {
   usedAi: boolean;
 }
 
+function cueText(value: string): string {
+  return ` ${value.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim()} `;
+}
+
 function unique(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
 export function localQueryPlan(query: string): QueryPlan {
-  const lower = query.toLowerCase();
+  const searchableQuery = cueText(query);
   const terms: string[] = [];
   const concepts: string[] = [];
 
   for (const entry of CONCEPTS) {
-    const matches = entry.cues.some((cue) => cue && lower.includes(cue.toLowerCase()));
+    const matches = entry.cues.some((cue) => cue && searchableQuery.includes(cueText(cue)));
     if (matches) {
       terms.push(...entry.terms);
       concepts.push(entry.cues[0]);
@@ -49,19 +53,61 @@ interface RankedTerm {
   raw: string;
   normalized: string;
   packed: string;
-  wordPattern: RegExp;
   grams: string[];
 }
+
+interface IndexedPassage {
+  passage: CorpusPassage;
+  tokens: string[];
+  packed: string;
+  length: number;
+}
+
+const verseIndex: IndexedPassage[] = corpus.passages
+  .filter((passage) => passage.kind === "verse")
+  .map((passage) => {
+    const tokens = passage.search.split(" ").filter(Boolean);
+    return { passage, tokens, packed: tokens.join(""), length: tokens.length };
+  });
+
+const averageVerseLength = verseIndex.reduce((sum, entry) => sum + entry.length, 0) / Math.max(verseIndex.length, 1);
 
 function prepareTerm(raw: string): RankedTerm | undefined {
   const normalized = normalizeRoman(raw);
   const packed = compact(raw);
   if (!normalized || packed.length < 2) return undefined;
-  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const grams = packed.length >= 5
     ? [...new Set(Array.from({ length: packed.length - 2 }, (_, index) => packed.slice(index, index + 3)))]
     : [];
-  return { raw, normalized, packed, wordPattern: new RegExp(`(?:^|\\s)${escaped}(?:$|\\s)`), grams };
+  return { raw, normalized, packed, grams };
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  let count = 0;
+  let offset = 0;
+  while (needle && (offset = haystack.indexOf(needle, offset)) !== -1) {
+    count += 1;
+    offset += needle.length;
+  }
+  return count;
+}
+
+function termFrequency(entry: IndexedPassage, term: RankedTerm): number {
+  const phraseCount = countOccurrences(entry.passage.search, term.normalized);
+  if (term.normalized.includes(" ") && phraseCount) return phraseCount * 1.8;
+
+  const exactCount = entry.tokens.filter((token) => token === term.normalized).length;
+  if (exactCount) return exactCount * 1.5;
+
+  const compoundCount = countOccurrences(entry.packed, term.packed);
+  if (compoundCount) return compoundCount * 0.9;
+
+  if (term.grams.length) {
+    const overlap = term.grams.filter((gram) => entry.packed.includes(gram)).length / term.grams.length;
+    if (overlap >= 0.8) return overlap * 0.35;
+  }
+
+  return 0;
 }
 
 function citationFilter(query: string): { sthana?: number; chapter?: number; verse?: string } {
@@ -81,58 +127,64 @@ function citationFilter(query: string): { sthana?: number; chapter?: number; ver
   return { sthana };
 }
 
-function scorePassage(passage: CorpusPassage, terms: RankedTerm[], totalTerms: number): SearchResult | undefined {
-  const haystackRoman = passage.search;
-  const haystackCompact = haystackRoman.replace(/\s+/g, "");
+function scorePassage(
+  entry: IndexedPassage,
+  terms: RankedTerm[],
+  documentFrequencies: number[],
+  candidateCount: number,
+  queryPhrase: string,
+): SearchResult | undefined {
   let score = 0;
   const matchedTerms: string[] = [];
 
-  for (const term of terms) {
-    if (term.wordPattern.test(haystackRoman)) {
-      score += 18 + Math.min(term.normalized.length, 12);
-      matchedTerms.push(term.raw);
-      continue;
-    }
-    if (haystackCompact.includes(term.packed)) {
-      score += 10 + Math.min(term.packed.length / 2, 8);
-      matchedTerms.push(term.raw);
-      continue;
-    }
-    if (term.grams.length) {
-      const overlap = term.grams.filter((gram) => haystackCompact.includes(gram)).length / term.grams.length;
-      if (overlap >= 0.8) {
-        score += overlap * 4;
-        matchedTerms.push(term.raw);
-      }
-    }
+  for (const [index, term] of terms.entries()) {
+    const frequency = termFrequency(entry, term);
+    if (!frequency) continue;
+
+    // BM25 rewards rare terms while normalizing long passages. Sanskrit compounds
+    // are handled by the weighted substring frequency above.
+    const documentFrequency = documentFrequencies[index];
+    const inverseDocumentFrequency = Math.log(1 + (candidateCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
+    const k1 = 1.35;
+    const b = 0.72;
+    const lengthNormalization = k1 * (1 - b + b * (entry.length / averageVerseLength));
+    score += inverseDocumentFrequency * ((frequency * (k1 + 1)) / (frequency + lengthNormalization));
+    matchedTerms.push(term.raw);
   }
 
   if (!matchedTerms.length) return undefined;
-  const coverage = matchedTerms.length / Math.max(totalTerms, 1);
-  score += coverage * 28 + Math.max(0, matchedTerms.length - 1) * 12;
-  if (passage.kind === "verse") score += 2;
+  const coverage = matchedTerms.length / Math.max(terms.length, 1);
+  score += coverage * 3 + Math.max(0, matchedTerms.length - 1) * 0.75;
+  if (queryPhrase.length >= 5 && entry.passage.search.includes(queryPhrase)) score += 8;
 
-  return { ...passage, score: Number(score.toFixed(3)), matchedTerms: unique(matchedTerms) };
+  return { ...entry.passage, score: Number(score.toFixed(3)), matchedTerms: unique(matchedTerms) };
 }
 
 export function searchCorpus(plan: QueryPlan, limit = 8): SearchResult[] {
   const citation = citationFilter(plan.original);
   const exactCitation = citation.chapter !== undefined && citation.verse !== undefined;
-  const candidates = corpus.passages.filter((passage) => {
-    if (passage.kind !== "verse") return false;
-    if (citation.sthana && passage.sthana !== citation.sthana) return false;
-    if (exactCitation && passage.chapter !== citation.chapter) return false;
-    if (exactCitation && !passage.verse.split("–").includes(citation.verse!)) return false;
+  const candidates = verseIndex.filter((entry) => {
+    if (citation.sthana && entry.passage.sthana !== citation.sthana) return false;
+    if (exactCitation && entry.passage.chapter !== citation.chapter) return false;
+    if (exactCitation && !entry.passage.verse.split("–").includes(citation.verse!)) return false;
     return true;
   });
 
   if (exactCitation && candidates.length) {
-    return candidates.slice(0, limit).map((passage) => ({ ...passage, score: 100, matchedTerms: [passage.id] }));
+    return candidates.slice(0, limit).map(({ passage }) => ({ ...passage, score: 100, matchedTerms: [passage.id] }));
   }
 
   const terms = plan.terms.map(prepareTerm).filter((term): term is RankedTerm => Boolean(term));
+  if (!terms.length) return [];
+
+  const documentFrequencies = terms.map((term) => candidates.reduce(
+    (count, entry) => count + (termFrequency(entry, term) > 0 ? 1 : 0),
+    0,
+  ));
+  const queryPhrase = normalizeRoman(plan.original);
+
   return candidates
-    .map((passage) => scorePassage(passage, terms, terms.length))
+    .map((entry) => scorePassage(entry, terms, documentFrequencies, candidates.length, queryPhrase))
     .filter((result): result is SearchResult => Boolean(result))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);

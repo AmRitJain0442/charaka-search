@@ -232,7 +232,7 @@ export default function Home() {
             {!loading && results.length > 0 && (
               <div className="retrieval-note">
                 {usedAi && <Sparkles size={14} />}
-                {usedAi ? "AI-interpreted · corpus-grounded" : "Sanskrit-aware lexical match"}
+                {usedAi ? "AI-expanded · hybrid BM25 ranking" : "Sanskrit-aware · hybrid BM25 ranking"}
               </div>
             )}
           </div>
