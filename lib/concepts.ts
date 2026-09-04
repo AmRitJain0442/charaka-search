@@ -9,6 +9,8 @@ export const CONCEPTS: ConceptEntry[] = [
   { cues: ["health", "healthy", "wellbeing", "well-being", "स्वास्थ्य", "सेहत", "आरोग्य"], terms: ["ārogya", "svastha", "svasthya"] },
   { cues: ["disease", "illness", "sick", "रोग", "बीमारी"], terms: ["roga", "vyādhi", "ātura"] },
   { cues: ["long life", "longevity", "lifespan", "दीर्घायु", "लंबी आयु"], terms: ["dīrghajīvita", "dīrghāyu", "āyuṣ"] },
+  { cues: ["life", "जीवन", "आयु"], terms: ["jīvita", "āyuṣ"] },
+  { cues: ["destroy", "destroyer", "destruction", "विनाश", "नाशक"], terms: ["apahartṛ", "vināśa", "nāśa"] },
   { cues: ["foundation", "root", "basis", "मूल", "आधार"], terms: ["mūla"] },
   { cues: ["four goals", "goals of life", "purpose of life", "पुरुषार्थ"], terms: ["dharma", "artha", "kāma", "mokṣa"] },
   { cues: ["three doshas", "tridosha", "तीन दोष", "त्रिदोष"], terms: ["vāta", "pitta", "kapha"] },
@@ -67,6 +69,7 @@ export const CONCEPTS: ConceptEntry[] = [
   { cues: ["stool", "feces", "मल"], terms: ["mala", "purīṣa"] },
   { cues: ["truth", "सत्य"], terms: ["satya"] },
   { cues: ["compassion", "करुणा", "दया"], terms: ["anukrośa", "dayā"] },
+  { cues: ["all beings", "living beings", "सभी प्राणी", "सर्वभूत"], terms: ["sarvabhūta", "bhūta", "prāṇin"] },
   { cues: ["knowledge", "ज्ञान", "विद्या"], terms: ["jñāna", "vidyā"] },
   { cues: ["soul", "आत्मा"], terms: ["ātman", "puruṣa"] },
 ];

@@ -15,7 +15,7 @@ interface SearchResponse {
 const examples = [
   "health is the foundation of the four goals of life",
   "What are the three principles of Ayurveda?",
-  "आहार, निद्रा और ब्रह्मचर्य जीवन के स्तंभ",
+  "हेतुलिङ्गौषधज्ञानं स्वस्थातुरपरायणम्",
   "Ca.1.1.15",
 ];
 

@@ -14,6 +14,11 @@ describe("Charaka retrieval", () => {
     expect(results.some((result) => result.id === "Ca.1.1.15")).toBe(true);
   });
 
+  it("retrieves the three-principles verse from a Devanagari fragment", () => {
+    const results = searchCorpus(localQueryPlan("हेतुलिङ्गौषधज्ञानं स्वस्थातुरपरायणम्"));
+    expect(results[0]?.id).toBe("Ca.1.1.24");
+  });
+
   it("resolves an exact canonical citation", () => {
     const results = searchCorpus(localQueryPlan("Ca.1.1.15"));
     expect(results).toHaveLength(1);
