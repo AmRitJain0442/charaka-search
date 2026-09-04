@@ -7,7 +7,7 @@ import type { SearchResult } from "@/lib/types";
 
 interface SearchResponse {
   query: string;
-  plan: { usedAi: boolean };
+  plan: { usedAi: boolean; groups: { label: string; terms: string[] }[] };
   results: SearchResult[];
   error?: string;
 }
@@ -19,7 +19,7 @@ const examples = [
   "Ca.1.1.15",
 ];
 
-function ResultCard({ result, index }: { result: SearchResult; index: number }) {
+function ResultCard({ result, index, showCoverage }: { result: SearchResult; index: number; showCoverage: boolean }) {
   const [copied, setCopied] = useState(false);
 
   async function copyPassage() {
@@ -36,6 +36,11 @@ function ResultCard({ result, index }: { result: SearchResult; index: number }) 
           <span>{result.kind === "verse" ? "श्लोक" : "गद्य"}</span>
           <span className="meta-rule" />
           <span>{displayReference(result.sthana, result.chapter, result.verse)}</span>
+          {showCoverage && (
+            <span className={`coverage-badge ${result.conceptCoverage === 1 ? "coverage-badge--full" : ""}`}>
+              {result.conceptCoverage === 1 ? "FULL CONCEPT MATCH" : "PARTIAL MATCH"}
+            </span>
+          )}
         </div>
         <p className="devanagari-passage">{result.devanagari}</p>
         <div className="result-footer">
@@ -57,6 +62,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [usedAi, setUsedAi] = useState(false);
+  const [conceptCount, setConceptCount] = useState(0);
   const [searchRun, setSearchRun] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const resultsRef = useRef<HTMLElement>(null);
@@ -90,6 +96,7 @@ export default function Home() {
     setSubmittedQuery(nextQuery);
     setLoading(true);
     setError("");
+    setConceptCount(0);
     setSearchRun((run) => run + 1);
 
     try {
@@ -102,6 +109,7 @@ export default function Home() {
       if (!response.ok) throw new Error(payload.error ?? "Search failed.");
       setResults(payload.results);
       setUsedAi(payload.plan.usedAi);
+      setConceptCount(payload.plan.groups.length);
     } catch (cause) {
       setResults([]);
       setError(cause instanceof Error ? cause.message : "The search could not be completed.");
@@ -114,6 +122,8 @@ export default function Home() {
     event.preventDefault();
     void search();
   }
+
+  const hasFullConceptMatch = results.some((result) => result.conceptCoverage === 1);
 
   return (
     <main className={submittedQuery || loading ? "search-active" : undefined}>
@@ -227,12 +237,18 @@ export default function Home() {
           <div className="results-heading">
             <div>
               <span className="section-number">॥ परिणामाः ॥</span>
-              <h2>{loading ? "Searching the text…" : results.length ? "Passages found" : "No passage found"}</h2>
+              <h2>{loading
+                ? "Searching the text…"
+                : results.length
+                  ? conceptCount > 1 && !hasFullConceptMatch ? "Closest partial matches" : "Passages found"
+                  : "No passage found"}</h2>
             </div>
             {!loading && results.length > 0 && (
               <div className="retrieval-note">
                 {usedAi && <Sparkles size={14} />}
-                {usedAi ? "AI-expanded · hybrid BM25 ranking" : "Sanskrit-aware · hybrid BM25 ranking"}
+                {conceptCount > 1 && !hasFullConceptMatch
+                  ? "No single śloka covers every concept"
+                  : usedAi ? "AI-expanded · hybrid BM25 ranking" : "Sanskrit-aware · hybrid BM25 ranking"}
               </div>
             )}
           </div>
@@ -244,7 +260,14 @@ export default function Home() {
             <div className="result-skeletons"><div /><div /><div /></div>
           ) : (
             <div className="results-list">
-              {results.map((result, index) => <ResultCard key={`${result.id}-${index}`} result={result} index={index} />)}
+              {results.map((result, index) => (
+                <ResultCard
+                  key={`${result.id}-${index}`}
+                  result={result}
+                  index={index}
+                  showCoverage={conceptCount > 1}
+                />
+              ))}
               {!results.length && !error && (
                 <div className="empty-result">
                   Try a Sanskrit term, a more specific description, or a citation such as <code>Ca.1.1.15</code>.
