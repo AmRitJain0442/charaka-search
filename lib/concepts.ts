@@ -63,7 +63,7 @@ export const CONCEPTS: ConceptEntry[] = [
   { cues: ["purgation", "विरेचन"], terms: ["virecana"] },
   { cues: ["enema", "बस्ति", "बस्ती"], terms: ["basti"] },
   { cues: ["oil", "unctuous", "तेल", "स्नेह"], terms: ["sneha", "taila", "snigdha"] },
-  { cues: ["sweating", "fomentation", "स्वेदन", "पसीना"], terms: ["sveda", "svedana"] },
+  { cues: ["sweat", "sweating", "perspiration", "fomentation", "स्वेद", "स्वेदन", "पसीना"], terms: ["sveda", "svedana"] },
   { cues: ["blood", "रक्त", "खून"], terms: ["rakta", "śoṇita"] },
   { cues: ["urine", "मूत्र"], terms: ["mūtra"] },
   { cues: ["stool", "feces", "मल"], terms: ["mala", "purīṣa"] },

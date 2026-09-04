@@ -19,6 +19,15 @@ describe("Charaka retrieval", () => {
     expect(results[0]?.id).toBe("Ca.1.1.24");
   });
 
+  it("expands the everyday English word sweat to Sanskrit passages", () => {
+    const plan = localQueryPlan("sweat");
+    const results = searchCorpus(plan);
+
+    expect(plan.terms).toEqual(expect.arrayContaining(["sveda", "svedana"]));
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]?.devanagari).toContain("स्वेद");
+  });
+
   it("resolves an exact canonical citation", () => {
     const results = searchCorpus(localQueryPlan("Ca.1.1.15"));
     expect(results).toHaveLength(1);
