@@ -28,6 +28,17 @@ describe("Charaka retrieval", () => {
     expect(results[0]?.devanagari).toContain("स्वेद");
   });
 
+  it.each([
+    ["hunger", "क्षुध"],
+    ["stool", "पुरीष"],
+    ["thirst", "पिपास"],
+    ["constipation", "बद्धपुरीष"],
+  ])("expands the everyday body-function query %s", (query, expectedText) => {
+    const results = searchCorpus(localQueryPlan(query));
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((result) => result.devanagari.includes(expectedText))).toBe(true);
+  });
+
   it("tolerates a minor Romanized Sanskrit misspelling", () => {
     const results = searchCorpus(localQueryPlan("arogyaa mulam"));
     expect(results[0]?.id).toBe("Ca.1.1.15");

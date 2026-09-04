@@ -24,10 +24,15 @@ export function localQueryPlan(query: string): QueryPlan {
   const searchableQuery = cueText(query);
   const terms: string[] = [];
   const concepts: string[] = [];
+  const matches = CONCEPTS.flatMap((entry) => entry.cues
+    .filter((cue) => cue && searchableQuery.includes(cueText(cue)))
+    .map((cue) => ({ entry, cue: cueText(cue) })));
+  const mostSpecificMatches = matches.filter((match) => !matches.some((other) => (
+    other.cue.length > match.cue.length && other.cue.includes(match.cue)
+  )));
 
-  for (const entry of CONCEPTS) {
-    const matches = entry.cues.some((cue) => cue && searchableQuery.includes(cueText(cue)));
-    if (matches) {
+  for (const { entry } of mostSpecificMatches) {
+    if (entry) {
       terms.push(...entry.terms);
       concepts.push(entry.cues[0]);
     }
@@ -59,7 +64,6 @@ interface RankedTerm {
 interface IndexedPassage {
   passage: CorpusPassage;
   tokens: string[];
-  packed: string;
   length: number;
 }
 
@@ -67,7 +71,7 @@ const verseIndex: IndexedPassage[] = corpus.passages
   .filter((passage) => passage.kind === "verse")
   .map((passage) => {
     const tokens = passage.search.split(" ").filter(Boolean);
-    return { passage, tokens, packed: tokens.join(""), length: tokens.length };
+    return { passage, tokens, length: tokens.length };
   });
 
 const averageVerseLength = verseIndex.reduce((sum, entry) => sum + entry.length, 0) / Math.max(verseIndex.length, 1);
@@ -99,11 +103,16 @@ function termFrequency(entry: IndexedPassage, term: RankedTerm): number {
   const exactCount = entry.tokens.filter((token) => token === term.normalized).length;
   if (exactCount) return exactCount * 1.5;
 
-  const compoundCount = countOccurrences(entry.packed, term.packed);
+  // Do not let a positive concept match a simple Sanskrit privative form such
+  // as bubhukṣā (appetite) inside abubhukṣā (loss of appetite).
+  const eligibleTokens = entry.tokens.filter((token) => (
+    !token.startsWith(`a${term.packed}`) && !token.startsWith(`an${term.packed}`)
+  ));
+  const compoundCount = eligibleTokens.reduce((count, token) => count + countOccurrences(token, term.packed), 0);
   if (compoundCount) return compoundCount * 0.9;
 
   if (term.grams.length) {
-    const overlap = term.grams.filter((gram) => entry.packed.includes(gram)).length / term.grams.length;
+    const overlap = term.grams.filter((gram) => eligibleTokens.some((token) => token.includes(gram))).length / term.grams.length;
     if (overlap >= 0.8) return overlap * 0.35;
   }
 
