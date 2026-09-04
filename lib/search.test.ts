@@ -20,6 +20,11 @@ describe("Charaka retrieval", () => {
     expect(results[0].id).toBe("Ca.1.1.15");
   });
 
+  it("resolves Devanagari-numbered citations", () => {
+    const results = searchCorpus(localQueryPlan("सूत्रस्थान १/१५"));
+    expect(results[0]?.id).toBe("Ca.1.1.15");
+  });
+
   it("formats references in Devanagari", () => {
     expect(displayReference(1, 1, "15")).toBe("चरकसंहिता · सूत्रस्थान १/१५");
   });

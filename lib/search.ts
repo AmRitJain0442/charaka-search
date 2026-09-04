@@ -66,16 +66,17 @@ function prepareTerm(raw: string): RankedTerm | undefined {
 
 function citationFilter(query: string): { sthana?: number; chapter?: number; verse?: string } {
   const roman = normalizeRoman(query);
+  const latinDigits = query.replace(/[०-९]/g, (digit) => String("०१२३४५६७८९".indexOf(digit)));
   let sthana: number | undefined;
   for (let index = 1; index < STHANA_IAST.length; index += 1) {
     const name = normalizeRoman(STHANA_IAST[index]);
     if (roman.includes(name.replace("sthana", "")) || roman.includes(name)) sthana = index;
   }
 
-  const canonical = query.match(/(?:Ca\.)?(\d+)\.(\d+)\.(\d+(?:\.\d+)?)/i);
+  const canonical = latinDigits.match(/(?:Ca\.)?(\d+)\.(\d+)\.(\d+(?:\.\d+)?)/i);
   if (canonical) return { sthana: Number(canonical[1]), chapter: Number(canonical[2]), verse: canonical[3] };
 
-  const slash = query.match(/(\d+)\s*[/:]\s*(\d+(?:\.\d+)?)/);
+  const slash = latinDigits.match(/(\d+)\s*[/:]\s*(\d+(?:\.\d+)?)/);
   if (slash) return { sthana, chapter: Number(slash[1]), verse: slash[2] };
   return { sthana };
 }

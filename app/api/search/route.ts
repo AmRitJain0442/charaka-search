@@ -12,8 +12,27 @@ const aiPlanSchema = z.object({
   concepts: z.array(z.string()).max(8).default([]),
 });
 
+const queryCache = new Map<string, QueryPlan>();
+const requestWindows = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(request: Request): boolean {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  const now = Date.now();
+  const current = requestWindows.get(ip);
+  if (!current || now >= current.resetAt) {
+    requestWindows.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  current.count += 1;
+  return current.count > 20;
+}
+
 async function interpretWithAi(query: string, fallback: QueryPlan): Promise<QueryPlan> {
   if (!process.env.VERCEL_OIDC_TOKEN && !process.env.AI_GATEWAY_API_KEY) return fallback;
+
+  const cacheKey = query.toLocaleLowerCase().trim();
+  const cached = queryCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     const { text } = await generateText({
@@ -28,12 +47,15 @@ User query: ${JSON.stringify(query)}`,
     });
     const json = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     const parsed = aiPlanSchema.parse(JSON.parse(json));
-    return {
+    const plan = {
       original: query,
       terms: [...new Set([...parsed.sanskrit_terms, ...fallback.terms])],
       concepts: [...new Set([...parsed.concepts, ...fallback.concepts])],
       usedAi: true,
     };
+    if (queryCache.size >= 256) queryCache.delete(queryCache.keys().next().value ?? "");
+    queryCache.set(cacheKey, plan);
+    return plan;
   } catch (error) {
     console.error("AI query interpretation failed; using local expansion", error);
     return fallback;
@@ -41,6 +63,9 @@ User query: ${JSON.stringify(query)}`,
 }
 
 export async function POST(request: Request) {
+  if (isRateLimited(request)) {
+    return NextResponse.json({ error: "Too many searches. Please try again in a minute." }, { status: 429 });
+  }
   const payload = requestSchema.safeParse(await request.json().catch(() => null));
   if (!payload.success) {
     return NextResponse.json({ error: "Enter a question of at least two characters." }, { status: 400 });
