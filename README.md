@@ -28,9 +28,10 @@ npm run corpus:build
 npm run dev
 ```
 
-The application has a deterministic Sanskrit-aware search fallback. On Vercel it can
-also use the automatically provisioned OIDC token to interpret natural-language queries
-through Vercel AI Gateway.
+The application has a deterministic Sanskrit-aware search layer. It can optionally use
+Vercel AI Gateway to interpret long-tail natural-language queries. Set
+`ENABLE_AI_EXPANSION=true` after enabling AI Gateway billing on the Vercel account, or
+provide `AI_GATEWAY_API_KEY`; the canonical retrieval layer remains the same.
 
 ## Commands
 

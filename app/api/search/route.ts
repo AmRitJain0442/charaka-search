@@ -29,6 +29,8 @@ function isRateLimited(request: Request): boolean {
 }
 
 async function interpretWithAi(query: string, fallback: QueryPlan, requestToken?: string): Promise<QueryPlan> {
+  const aiEnabled = process.env.ENABLE_AI_EXPANSION === "true" || Boolean(process.env.AI_GATEWAY_API_KEY);
+  if (!aiEnabled) return fallback;
   const token = process.env.AI_GATEWAY_API_KEY ?? requestToken ?? process.env.VERCEL_OIDC_TOKEN;
   if (!token) return fallback;
 
