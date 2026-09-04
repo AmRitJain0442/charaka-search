@@ -116,7 +116,7 @@ export default function Home() {
   }
 
   return (
-    <main>
+    <main className={submittedQuery || loading ? "search-active" : undefined}>
       <div className="paper-noise" aria-hidden="true" />
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="Charaka home">
