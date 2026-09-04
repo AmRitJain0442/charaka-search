@@ -75,7 +75,8 @@ function normalizedSearch(iast: string, deva: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ");
-  return `${iast.toLowerCase()} ${ascii} ${deva}`.replace(/\s+/g, " ").trim();
+  void deva;
+  return ascii.replace(/\s+/g, " ").trim();
 }
 
 function makePassage(nodes: unknown[], kind: "verse" | "prose"): CorpusPassage | undefined {
