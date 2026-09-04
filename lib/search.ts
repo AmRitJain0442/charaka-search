@@ -36,8 +36,10 @@ export function localQueryPlan(query: string): QueryPlan {
   // Preserve substantial Roman tokens. This supports common spellings such as
   // "arogya", "vata", and remembered fragments without treating stopwords as Sanskrit.
   const stopwords = new Set(["about", "which", "where", "what", "when", "does", "says", "shloka", "verse", "charaka", "find", "show", "tell", "with", "that", "this", "from", "should", "according"]);
-  for (const token of roman.split(" ")) {
-    if (token.length >= 4 && !stopwords.has(token)) terms.push(token);
+  if (looksSanskrit || concepts.length === 0) {
+    for (const token of roman.split(" ")) {
+      if (token.length >= 4 && !stopwords.has(token)) terms.push(token);
+    }
   }
 
   return { original: query, terms: unique(terms), concepts: unique(concepts), usedAi: false };
@@ -116,6 +118,7 @@ export function searchCorpus(plan: QueryPlan, limit = 8): SearchResult[] {
   const citation = citationFilter(plan.original);
   const exactCitation = citation.chapter !== undefined && citation.verse !== undefined;
   const candidates = corpus.passages.filter((passage) => {
+    if (passage.kind !== "verse") return false;
     if (citation.sthana && passage.sthana !== citation.sthana) return false;
     if (exactCitation && passage.chapter !== citation.chapter) return false;
     if (exactCitation && !passage.verse.split("–").includes(citation.verse!)) return false;
