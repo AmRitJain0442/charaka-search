@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { createGateway } from "@ai-sdk/gateway";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { localQueryPlan, searchCorpus, type QueryPlan } from "@/lib/search";
@@ -27,8 +28,9 @@ function isRateLimited(request: Request): boolean {
   return current.count > 20;
 }
 
-async function interpretWithAi(query: string, fallback: QueryPlan): Promise<QueryPlan> {
-  if (!process.env.VERCEL_OIDC_TOKEN && !process.env.AI_GATEWAY_API_KEY) return fallback;
+async function interpretWithAi(query: string, fallback: QueryPlan, requestToken?: string): Promise<QueryPlan> {
+  const token = process.env.AI_GATEWAY_API_KEY ?? requestToken ?? process.env.VERCEL_OIDC_TOKEN;
+  if (!token) return fallback;
 
   const cacheKey = query.toLocaleLowerCase().trim();
   const cached = queryCache.get(cacheKey);
@@ -36,7 +38,7 @@ async function interpretWithAi(query: string, fallback: QueryPlan): Promise<Quer
 
   try {
     const { text } = await generateText({
-      model: "google/gemini-2.5-flash-lite",
+      model: createGateway({ apiKey: token })("google/gemini-2.5-flash-lite"),
       maxOutputTokens: 240,
       temperature: 0,
       prompt: `You are a Sanskrit information-retrieval query interpreter for the Carakasaṃhitā.
@@ -72,7 +74,8 @@ export async function POST(request: Request) {
   }
 
   const fallback = localQueryPlan(payload.data.query);
-  const plan = await interpretWithAi(payload.data.query, fallback);
+  const oidcToken = request.headers.get("x-vercel-oidc-token") ?? undefined;
+  const plan = await interpretWithAi(payload.data.query, fallback, oidcToken);
   const results = searchCorpus(plan, 8);
 
   return NextResponse.json({ query: payload.data.query, plan, results });
