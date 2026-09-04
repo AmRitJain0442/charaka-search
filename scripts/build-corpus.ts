@@ -80,24 +80,28 @@ function normalizedSearch(iast: string, deva: string): string {
 }
 
 function makePassage(nodes: unknown[], kind: "verse" | "prose"): CorpusPassage | undefined {
-  const usable = nodes
+  const textItems = nodes
     .map((node) => ({ id: sourceId(node), text: directText(node) }))
-    .filter((item): item is { id: string; text: string } => Boolean(item.id && item.text));
-  if (!usable.length) return undefined;
+    .filter((item) => Boolean(item.text));
+  const identifiedItems = textItems.filter((item): item is { id: string; text: string } => Boolean(item.id));
+  if (!identifiedItems.length) return undefined;
 
-  const parsed = usable.map((item) => sourceParts(item.id)).filter(Boolean);
+  const parsed = identifiedItems.map((item) => sourceParts(item.id)).filter(Boolean);
   const first = parsed[0];
   if (!first) return undefined;
 
   const verseValues = [...new Set(parsed.map((item) => item!.verse))];
   const verse = verseValues.length === 1 ? verseValues[0] : `${verseValues[0]}–${verseValues.at(-1)}`;
   const id = `Ca.${first.sthana}.${first.chapter}.${verse}`;
-  const iast = tidy(usable.map((item) => item.text).join(" "));
+  // Some SARIT verse lines inherit the identifier from a sibling line. Keep
+  // every textual line in the group while deriving the reference from those
+  // lines that carry explicit identifiers.
+  const iast = tidy(textItems.map((item) => item.text).join(" "));
   const deva = devanagari(iast);
 
   return {
     id,
-    sourceIds: usable.map((item) => item.id),
+    sourceIds: identifiedItems.map((item) => item.id),
     sthana: first.sthana,
     chapter: first.chapter,
     verse,
