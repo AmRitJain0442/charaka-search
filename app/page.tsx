@@ -57,7 +57,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [usedAi, setUsedAi] = useState(false);
+  const [searchRun, setSearchRun] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const resultsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const focus = (event: KeyboardEvent) => {
@@ -70,6 +72,17 @@ export default function Home() {
     return () => window.removeEventListener("keydown", focus);
   }, []);
 
+  useEffect(() => {
+    if (searchRun === 0) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      resultsRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [searchRun]);
+
   async function search(queryOverride?: string) {
     const nextQuery = (queryOverride ?? query).trim();
     if (nextQuery.length < 2) return;
@@ -77,6 +90,7 @@ export default function Home() {
     setSubmittedQuery(nextQuery);
     setLoading(true);
     setError("");
+    setSearchRun((run) => run + 1);
 
     try {
       const response = await fetch("/api/search", {
@@ -190,7 +204,26 @@ export default function Home() {
       </section>
 
       {(submittedQuery || loading) && (
-        <section className="results-section" aria-live="polite">
+        <section ref={resultsRef} className="results-section" aria-live="polite">
+          <form className="results-search" onSubmit={submit}>
+            <div className="results-search-label">
+              <span className="live-dot" />
+              <span>पुनः अन्वेषणम्</span>
+            </div>
+            <Search size={18} strokeWidth={1.7} aria-hidden="true" />
+            <input
+              aria-label="Search again"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ask another question…"
+              maxLength={400}
+            />
+            <button type="submit" disabled={loading || query.trim().length < 2}>
+              {loading ? <span className="loading-mark" /> : <CornerDownLeft size={17} />}
+              <span>{loading ? "Seeking" : "Search again"}</span>
+            </button>
+          </form>
+
           <div className="results-heading">
             <div>
               <span className="section-number">॥ परिणामाः ॥</span>
