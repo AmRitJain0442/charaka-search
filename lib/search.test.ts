@@ -44,6 +44,17 @@ describe("Charaka retrieval", () => {
     expect(results[0]?.id).toBe("Ca.1.1.15");
   });
 
+  it("keeps modifiers as concept groups and labels incomplete combinations", () => {
+    const plan = localQueryPlan("light hunger with smelly sweat");
+    const results = searchCorpus(plan);
+
+    expect(plan.groups.map((group) => group.label)).toEqual(["light hunger", "smelly sweat"]);
+    expect(results.some((result) => result.id === "Ca.1.24.15")).toBe(true);
+    expect(results.every((result) => result.conceptCoverage < 1)).toBe(true);
+    expect(results.find((result) => result.id === "Ca.1.24.15")?.devanagari)
+      .toContain("तन्द्रानिद्रातियोगश्च तमसश्चातिदर्शनम्");
+  });
+
   it("resolves an exact canonical citation", () => {
     const results = searchCorpus(localQueryPlan("Ca.1.1.15"));
     expect(results).toHaveLength(1);

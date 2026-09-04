@@ -55,6 +55,9 @@ User query: ${JSON.stringify(query)}`,
       original: query,
       terms: [...new Set([...parsed.sanskrit_terms, ...fallback.terms])],
       concepts: [...new Set([...parsed.concepts, ...fallback.concepts])],
+      groups: fallback.groups.length
+        ? fallback.groups
+        : [{ label: parsed.concepts.join(" · ") || "AI interpretation", terms: parsed.sanskrit_terms }],
       usedAi: true,
     };
     if (queryCache.size >= 256) queryCache.delete(queryCache.keys().next().value ?? "");

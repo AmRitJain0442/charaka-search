@@ -5,10 +5,16 @@ import type { CorpusFile, CorpusPassage, SearchResult } from "@/lib/types";
 
 const corpus = corpusJson as CorpusFile;
 
+export interface QueryGroup {
+  label: string;
+  terms: string[];
+}
+
 export interface QueryPlan {
   original: string;
   terms: string[];
   concepts: string[];
+  groups: QueryGroup[];
   usedAi: boolean;
 }
 
@@ -24,6 +30,7 @@ export function localQueryPlan(query: string): QueryPlan {
   const searchableQuery = cueText(query);
   const terms: string[] = [];
   const concepts: string[] = [];
+  const groups: QueryGroup[] = [];
   const matches = CONCEPTS.flatMap((entry) => entry.cues
     .filter((cue) => cue && searchableQuery.includes(cueText(cue)))
     .map((cue) => ({ entry, cue: cueText(cue) })));
@@ -31,27 +38,33 @@ export function localQueryPlan(query: string): QueryPlan {
     other.cue.length > match.cue.length && other.cue.includes(match.cue)
   )));
 
-  for (const { entry } of mostSpecificMatches) {
-    if (entry) {
-      terms.push(...entry.terms);
-      concepts.push(entry.cues[0]);
-    }
+  for (const entry of new Set(mostSpecificMatches.map((match) => match.entry))) {
+    terms.push(...entry.terms);
+    concepts.push(entry.cues[0]);
+    groups.push({ label: entry.cues[0], terms: entry.terms });
   }
 
   const roman = normalizeRoman(query);
   const looksSanskrit = /[āīūṛṝḷṅñṭḍṇśṣṃṁḥ]|[\u0900-\u097f]/i.test(query);
-  if (looksSanskrit) terms.push(...roman.split(" ").filter((term) => term.length > 2));
+  const lexicalTerms: string[] = [];
+  if (looksSanskrit) lexicalTerms.push(...roman.split(" ").filter((term) => term.length > 2));
 
   // Preserve substantial Roman tokens. This supports common spellings such as
   // "arogya", "vata", and remembered fragments without treating stopwords as Sanskrit.
   const stopwords = new Set(["about", "which", "where", "what", "when", "does", "says", "shloka", "verse", "charaka", "find", "show", "tell", "with", "that", "this", "from", "should", "according"]);
   if (looksSanskrit || concepts.length === 0) {
     for (const token of roman.split(" ")) {
-      if (token.length >= 4 && !stopwords.has(token)) terms.push(token);
+      if (token.length >= 4 && !stopwords.has(token)) lexicalTerms.push(token);
     }
   }
 
-  return { original: query, terms: unique(terms), concepts: unique(concepts), usedAi: false };
+  for (const term of unique(lexicalTerms)) {
+    if (terms.some((existing) => compact(existing) === compact(term))) continue;
+    terms.push(term);
+    groups.push({ label: term, terms: [term] });
+  }
+
+  return { original: query, terms: unique(terms), concepts: unique(concepts), groups, usedAi: false };
 }
 
 interface RankedTerm {
@@ -139,6 +152,7 @@ function citationFilter(query: string): { sthana?: number; chapter?: number; ver
 function scorePassage(
   entry: IndexedPassage,
   terms: RankedTerm[],
+  groups: QueryGroup[],
   documentFrequencies: number[],
   candidateCount: number,
   queryPhrase: string,
@@ -162,11 +176,23 @@ function scorePassage(
   }
 
   if (!matchedTerms.length) return undefined;
-  const coverage = matchedTerms.length / Math.max(terms.length, 1);
-  score += coverage * 3 + Math.max(0, matchedTerms.length - 1) * 0.75;
+  const termCoverage = matchedTerms.length / Math.max(terms.length, 1);
+  const matchedTermKeys = new Set(matchedTerms.map(compact));
+  const matchedConcepts = groups
+    .filter((group) => group.terms.some((term) => matchedTermKeys.has(compact(term))))
+    .map((group) => group.label);
+  const conceptCoverage = groups.length ? matchedConcepts.length / groups.length : termCoverage;
+  score += termCoverage * 3 + Math.max(0, matchedTerms.length - 1) * 0.75 + conceptCoverage * 5;
+  score *= 0.35 + conceptCoverage * 0.65;
   if (queryPhrase.length >= 5 && entry.passage.search.includes(queryPhrase)) score += 8;
 
-  return { ...entry.passage, score: Number(score.toFixed(3)), matchedTerms: unique(matchedTerms) };
+  return {
+    ...entry.passage,
+    score: Number(score.toFixed(3)),
+    matchedTerms: unique(matchedTerms),
+    matchedConcepts: unique(matchedConcepts),
+    conceptCoverage: Number(conceptCoverage.toFixed(3)),
+  };
 }
 
 export function searchCorpus(plan: QueryPlan, limit = 8): SearchResult[] {
@@ -180,7 +206,13 @@ export function searchCorpus(plan: QueryPlan, limit = 8): SearchResult[] {
   });
 
   if (exactCitation && candidates.length) {
-    return candidates.slice(0, limit).map(({ passage }) => ({ ...passage, score: 100, matchedTerms: [passage.id] }));
+    return candidates.slice(0, limit).map(({ passage }) => ({
+      ...passage,
+      score: 100,
+      matchedTerms: [passage.id],
+      matchedConcepts: ["citation"],
+      conceptCoverage: 1,
+    }));
   }
 
   const terms = plan.terms.map(prepareTerm).filter((term): term is RankedTerm => Boolean(term));
@@ -193,9 +225,9 @@ export function searchCorpus(plan: QueryPlan, limit = 8): SearchResult[] {
   const queryPhrase = normalizeRoman(plan.original);
 
   return candidates
-    .map((entry) => scorePassage(entry, terms, documentFrequencies, candidates.length, queryPhrase))
+    .map((entry) => scorePassage(entry, terms, plan.groups, documentFrequencies, candidates.length, queryPhrase))
     .filter((result): result is SearchResult => Boolean(result))
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.conceptCoverage - a.conceptCoverage || b.score - a.score)
     .slice(0, limit);
 }
 

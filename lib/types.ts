@@ -31,4 +31,6 @@ export interface CorpusFile {
 export interface SearchResult extends CorpusPassage {
   score: number;
   matchedTerms: string[];
+  matchedConcepts: string[];
+  conceptCoverage: number;
 }

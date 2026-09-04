@@ -17,6 +17,9 @@ interpretation, while every displayed character comes from the indexed source ed
 5. A lightweight in-memory index applies BM25 relevance ranking, with additional exact,
    Sanskrit-compound, phrase, citation, coverage, and fuzzy signals. It provides an
    Elasticsearch-style hybrid search without an external service or network hop.
+6. Multi-concept questions retain semantic groups and modifiers. Complete concept coverage
+   ranks first; when no single śloka covers the whole request, results are explicitly marked
+   as partial instead of presenting unrelated matches as an exact answer.
 
 The generated corpus contains 9,324 addressable passages: 7,770 verse groups and 1,554
 numbered prose passages.
